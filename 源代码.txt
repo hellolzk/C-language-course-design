@@ -1,0 +1,1177 @@
+#include<stdio.h>
+#include<stdlib.h>
+#include<time.h>
+#include<graphics.h>
+#include<conio.h>
+#include <easyx.h>
+#include<mmsystem.h>
+#include<string.h>
+#include<math.h>
+#pragma comment(lib,"winmm.lib")
+
+//#define _CRT_SECURE_NO_WARNINGS
+#define HEIGHT 600
+#define WIDTH 1000
+IMAGE watermelonban;//下载西瓜瓣图片
+IMAGE watermellon[21];//下载数字图片
+IMAGE watermellonblack;
+IMAGE pigrightblack;
+IMAGE pigrightblack2;
+IMAGE pigleftblack;
+IMAGE pigleftblack2;
+IMAGE background_of_welcome;
+IMAGE soundoff1;
+IMAGE soundoff2;
+IMAGE soundon1;
+IMAGE soundon2;
+
+void button(int x, int y, int w, int h, const char* s);
+int setting(int*v_of_pig);
+
+//用户姓名  分数
+typedef struct 
+{
+	char name[20];
+	int score;
+}USER;
+
+//题目节点
+typedef struct NODE
+{
+	int random;
+	char symbol;
+	int num1;
+	int num2;
+	int sum;
+	int a;//西瓜
+	int b;//西瓜
+	int c;//西瓜
+	int d;//西瓜
+	char s[20];//算数题
+	//四个西瓜的数据
+	struct NODE* nextques;
+}QUESTION;
+
+//生成结点
+void initnode(QUESTION*p)
+{
+	p->random = rand() % 4;//符号
+	p->num1 = rand() % 11;//生成0-10加数
+	p->num2 = rand() % 11;//生成0-10加数
+	if (p->random % 2 == 0)
+	{
+		p->sum = p->num1 + p->num2;
+		p->symbol = '+';
+		sprintf(p->s, "%d+%d", p->num1, p->num2);
+	}
+	else
+	{
+		p->symbol = '-';
+		if (p->num1 > p->num2)
+		{
+			p->sum = p->num1 - p->num2;
+			sprintf(p->s, "%d-%d", p->num1, p->num2);
+		}
+		else
+		{
+			p->sum = p->num2 - p->num1;
+			sprintf(p->s, "%d-%d", p->num2, p->num1);
+		}
+	}
+	while (1)
+	{
+		p->a = rand() % 21;
+		p->b = rand() % 21;
+		p->c = rand() % 21;
+		p->d = rand() % 21;
+		if (p->a != p->b && p->a != p->c && p->a != p->d && p->c != p->b && p->d != p->b && p->c != p->d && (p->a == p->sum || p->b == p->sum || p->c == p->sum || p->d == p->sum))
+		{
+			break;
+		}
+	}
+}
+
+//生成链表
+QUESTION*initques()
+{
+	srand((unsigned)time(NULL));//生成随机数种子
+	QUESTION* head = NULL, * tail = NULL, * p;
+	for (int i = 1; i <= 10; i++)//生成10个题目
+	{
+		p = (QUESTION*)malloc(sizeof(QUESTION));
+		if (head == NULL)
+		{
+			initnode(p);//生成链表函数
+			p->nextques = NULL;
+			head = p;
+		}
+		else
+		{
+			initnode(p);//生成链表函数
+			tail->nextques = p;
+			p->nextques = NULL;
+		}
+		tail = p;
+	}
+	return head;
+}
+
+//增加游戏题目
+QUESTION* addques(QUESTION*nowhead,QUESTION*head,QUESTION*prenode)
+{
+	QUESTION* p = nowhead, * q = NULL;
+	srand(time(0)+rand());
+	if (nowhead == NULL)
+	{
+		q = (QUESTION*)malloc(sizeof(QUESTION));
+		initnode(q);
+		prenode->nextques = q;
+		q->nextques = NULL;
+		head = q;
+		nowhead = q;
+	}
+	else
+	{ 
+		while (p->nextques != NULL)
+		{
+			p = p->nextques;
+		}//遍历到尾结点
+		q = (QUESTION*)malloc(sizeof(QUESTION));
+		initnode(q);
+		p->nextques = q;
+		q->nextques = NULL;
+	}
+	return nowhead;
+}
+
+//删除此题
+QUESTION* del_this_ques(QUESTION*nowhead,QUESTION*head)
+{
+	if (nowhead == head)
+	{
+		nowhead = nowhead->nextques;
+	}
+	else
+	{
+		while (head != NULL && head->nextques != nowhead)
+		{
+			head = head->nextques;
+		}
+		head->nextques = nowhead->nextques;
+		nowhead = head->nextques;
+	}
+	return nowhead;
+}
+
+//将当前结点的信息拷贝到正确结点中
+void kaobei_nowhead_to_righthead(QUESTION* nowhead, QUESTION* rightques)
+{
+	rightques->a = nowhead->a;
+	rightques->b = nowhead->b;
+	rightques->c = nowhead->c;
+	rightques->d = nowhead->d;
+	rightques->num1 = nowhead->num1;
+	rightques->num2 = nowhead->num2;
+	rightques->sum = nowhead->sum;
+	rightques->random = nowhead->random;
+	rightques->symbol = nowhead->symbol;
+	strcpy(rightques->s, nowhead->s);
+	rightques->nextques = NULL;
+}
+
+//移到正确题目链表
+QUESTION* trans_to_right(QUESTION* nowhead, QUESTION* head_of_right)
+{
+	QUESTION* rightques;
+	QUESTION* head=head_of_right;
+	if (head_of_right == NULL)//目前没有一道对题
+	{
+		rightques = (QUESTION*)malloc(sizeof(QUESTION));
+		kaobei_nowhead_to_righthead(nowhead, rightques);
+		head_of_right = rightques;
+	}
+	else
+	{
+		rightques = (QUESTION*)malloc(sizeof(QUESTION));
+		kaobei_nowhead_to_righthead(nowhead, rightques);
+		while (head->nextques != NULL)
+		{
+			head = head->nextques;
+		}
+		head->nextques = rightques;
+	}
+	return head_of_right;
+}
+
+//跳过此题
+QUESTION* skip_ques(QUESTION* nowhead,QUESTION*head)
+{
+	if (nowhead == NULL)
+	{
+		return head;
+	}
+	if (nowhead->nextques != NULL)
+	{
+		QUESTION* p = nowhead->nextques;
+		return p;
+	}
+	else
+	{
+		return head;
+	}
+}
+
+//玩家信息录入
+void init(USER& user)
+{
+	InputBox(user.name, 20, "请输入用户名：");
+	closegraph();
+}
+
+//按钮绘制
+void button(int x, int y, int w, int h, const char* s, int x_of_mouse, int y_of_mouse)
+{
+	if (x_of_mouse >= x && x_of_mouse <= x + w && y_of_mouse >= y && y_of_mouse <= y + h)
+	{
+		setfillcolor(CYAN);
+		fillroundrect(x - 6, y - 6, x + w + 6, y + h + 6, 10, 10);
+		settextstyle(35, 0, "楷体");
+		outtextxy((2 * x + w) / 2 - textwidth(s) / 2, (2 * y + h) / 2 - textheight(s) / 2, s);
+	}
+	else
+	{
+		setfillcolor(YELLOW);
+		fillroundrect(x, y, x + w, y + h, 10, 10);
+		settextstyle(30, 0, "楷体");
+		outtextxy((2 * x + w) / 2 - textwidth(s) / 2, (2 * y + h) / 2 - textheight(s) / 2, s);
+	}
+
+}
+
+//欢迎界面
+int setting(int *v_of_pig)
+{
+	int ret = 1;
+	int flag=1;
+	int cnt = 0;
+	int x_of_mouse = 0;//鼠标横坐标
+	int y_of_mouse = 0;//鼠标纵坐标
+	const char* set[] = { "开始","退出","难度" };
+	initgraph(400, 550);
+	HWND hnd2 = GetHWnd();
+	SetWindowText(hnd2, "菜单");
+	loadimage(&background_of_welcome, "image\\背景.jpg", WIDTH, HEIGHT);
+	BeginBatchDraw();
+	while (1)
+	{
+		settextcolor(RED);
+		cleardevice();//清屏，清掉黑色背景
+		setbkmode(TRANSPARENT);
+		putimage(0, 0, &background_of_welcome);
+		setfillcolor(YELLOW);
+		for (int i = 0, j = 100; i < 3, j <= 400; i++, j += 150)
+		{
+			button(150, j, 100, 50, set[i],x_of_mouse,y_of_mouse);
+		}
+		if (ret == 1)
+		{
+			ExMessage msg;
+			if (peekmessage(&msg, EM_MOUSE))
+			{
+				x_of_mouse = msg.x;
+				y_of_mouse = msg.y;
+				switch (msg.message)
+				{
+				case WM_LBUTTONDOWN:
+					if (msg.x >= 150 && msg.x <= 250 && msg.y >= 100 && msg.y <= 150)
+					{
+						int isok = MessageBox(GetHWnd(), "是否继续游戏", "提示", MB_OKCANCEL);
+						if (IDOK == isok)
+						{
+							flag = 1;//继续游戏
+							return flag;
+						}
+						else
+						{
+							flag = 0;//开始新的游戏
+							return flag;
+						}
+						cnt++;
+					}
+					if (msg.x >= 150 && msg.x <= 250 && msg.y >= 250 && msg.y <= 300)
+					{
+						exit(1);
+						cnt++;
+					}
+					if (msg.x >= 150 && msg.x <= 250 && msg.y >= 400 && msg.y <= 450)
+					{
+						set[0] = "简单";
+						set[1] = "中等";
+						set[2] = "困难";
+						ret = 0;
+					}
+					break;
+				default:
+					break;
+				}
+			}
+			if (cnt == 1)
+			{
+				closegraph();
+			}
+		}
+		else if (ret == 0)
+		{
+			ExMessage msg;
+			if (peekmessage(&msg, EM_MOUSE))
+			{
+				x_of_mouse = msg.x;
+				y_of_mouse = msg.y;
+				switch (msg.message)
+				{
+				case WM_LBUTTONDOWN:
+					if (msg.x >= 150 && msg.x <= 250 && msg.y >= 100 && msg.y <= 150)
+					{
+						*v_of_pig = 5;
+						set[0] = "开始";
+						set[1] = "退出";
+						set[2] = "难度";
+						ret = 1;
+					}
+					if (msg.x >= 150 && msg.x <= 250 && msg.y >= 250 && msg.y <= 300)
+					{
+						*v_of_pig = 15;
+						set[0] = "开始";
+						set[1] = "退出";
+						set[2] = "难度";
+						ret = 1;
+					}
+					if (msg.x >= 150 && msg.x <= 250 && msg.y >= 400 && msg.y <= 450)
+					{
+						*v_of_pig = 25;
+						set[0] = "开始";
+						set[1] = "退出";
+						set[2] = "难度";
+						ret = 1;
+					}
+					break;
+				default:
+					break;
+				}
+			}
+		}
+		FlushBatchDraw();
+	}
+	EndBatchDraw();
+	return flag;
+}
+
+//初始化界面
+void jiemian()
+{	
+	IMAGE background;
+	loadimage(&background, "image\\背景2.jpg",WIDTH,HEIGHT);
+	putimage(0, 0, &background);
+}
+
+//背景音乐
+void BGM(int is_play_music)
+{
+	//打开音乐
+	if (is_play_music==1)
+	{
+		mciSendString("open ./八戒.mp3", 0, 0, 0);
+		mciSendString("play ./八戒.mp3 repeat", 0, 0, 0);
+	}
+	else
+	{
+		mciSendString("pause ./八戒.mp3", 0, 0, 0);
+	}
+}
+
+//查看题目
+void check(QUESTION*righthead,QUESTION*head,QUESTION*nowhead)
+{
+	int y_of_check=40;
+	char s[100];
+	QUESTION* p = nowhead;
+	if (righthead == NULL)
+	{
+		outtextxy(10, 10, "您还没有做对任何题目，继续加油");
+	}
+	else
+	{
+		outtextxy(10, 10, "正确题目：");
+		while (righthead != NULL)
+		{
+			sprintf(s, "算数题：%5s   西瓜：%d %d %d %d", righthead->s, righthead->a, righthead->b, righthead->c, righthead->d);
+			outtextxy(10, y_of_check, s);
+			righthead = righthead->nextques;
+			y_of_check += 30;
+		}
+	}
+	outtextxy(10, y_of_check, "剩余题目：");
+	if (nowhead == NULL)
+	{
+		y_of_check += 30;
+		outtextxy(10, y_of_check, "无");
+	}
+	while (nowhead != NULL)
+	{
+		y_of_check += 30;
+		sprintf(s, "算数题：%5s   西瓜：%d %d %d %d", nowhead->s, nowhead->a, nowhead->b, nowhead->c, nowhead->d);
+		outtextxy(10, y_of_check, s);
+		nowhead = nowhead->nextques;
+	}
+	while (head != p)
+	{
+		y_of_check += 30;
+		sprintf(s, "算数题：%5s   西瓜：%d %d %d %d", head->s, head->a, head->b, head->c, head->d);
+		outtextxy(10, y_of_check, s);
+		head = head->nextques;
+	}
+}
+
+//文件写入
+void write_in_file(USER user)
+{
+	time_t now = time(0);
+	char* dt = ctime(&now);
+	char time[50];
+	strcpy(time, dt);
+	//printf("%s", dt);
+	FILE* fp;
+	fp = fopen("name_and_score.txt", "a+");
+	if (NULL == fp)
+	{
+		printf("打开文件失败");
+	}
+	else
+	{
+		fprintf(fp, "玩家：%s\t\t得分：%d\t\t时间：%s", user.name, user.score, time);
+		fclose(fp);
+	}
+}
+
+//接瓜音效
+void music_of_get_point(int music,int is_play_music)
+{
+	if (is_play_music == 1)
+	{
+		if (music == 0)
+		{
+			mciSendString("close ./错误音效.wav", 0, 0, 0);
+			mciSendString("open ./错误音效.wav", 0, 0, 0);
+			mciSendString("play ./错误音效.wav", 0, 0, 0);
+		}
+		if (music == 1)
+		{
+			mciSendString("close ./good.mp3", 0, 0, 0);
+			mciSendString("open ./good.mp3", 0, 0, 0);
+			mciSendString("play ./good.mp3", 0, 0, 0);
+		}
+		if (music == 2)
+		{
+			mciSendString("close ./great.mp3", 0, 0, 0);
+			mciSendString("open ./great.mp3", 0, 0, 0);
+			mciSendString("play ./great.mp3", 0, 0, 0);
+		}
+		if (music == 3)
+		{
+			mciSendString("close ./amazing.mp3", 0, 0, 0);
+			mciSendString("open ./amazing.mp3", 0, 0, 0);
+			mciSendString("play ./amazing.mp3", 0, 0, 0);
+		}
+		if (music >= 4)
+		{
+			mciSendString("close ./unbelievable.mp3", 0, 0, 0);
+			mciSendString("open ./unbelievable.mp3", 0, 0, 0);
+			mciSendString("play ./unbelievable.mp3", 0, 0, 0);
+		}
+	}
+}
+
+//打印题目
+void printques_on_screen(QUESTION*nowhead,QUESTION*head,char information_of_question[],char information_of_nextquestion[])
+{
+	if (nowhead != NULL)
+	{
+		sprintf(information_of_question, "题目:%s", nowhead->s);
+		outtextxy(40, 550, information_of_question);
+		if (nowhead->nextques != NULL)
+		{
+			sprintf(information_of_nextquestion, "下一题:%s", nowhead->nextques->s);
+			outtextxy(210, 550, information_of_nextquestion);
+		}
+		else if (nowhead != head)
+		{
+			sprintf(information_of_nextquestion, "下一题:%s", head->s);
+			outtextxy(210, 550, information_of_nextquestion);
+		}
+		else
+		{
+			sprintf(information_of_nextquestion, "下一题:无");
+			outtextxy(210, 550, information_of_nextquestion);
+		}
+	}
+	else
+	{
+		sprintf(information_of_question, "题目:无");
+		outtextxy(40, 550, information_of_question);
+		sprintf(information_of_nextquestion, "下一题:无");
+		outtextxy(210, 550, information_of_nextquestion);
+	}
+}
+
+//将当前分数和姓名以及猪的位置存盘文件
+void trans_current_situation_to_file(USER user,int x_of_pig,int left_or_right,int v_of_pig)
+{
+	FILE* fp;
+	fp = fopen("current_score_and_name_and_xofpig.txt", "w");
+	if (NULL == fp)
+	{
+		printf("打开文件失败");
+		return;
+	}
+	else
+	{
+		fprintf(fp, "%s\t%d\t%d\t%d\t%d", user.name, user.score,x_of_pig,left_or_right,v_of_pig);
+		fclose(fp);
+	}
+}
+
+//将当前做对的题目存入文件
+void trans_current_right_ques(QUESTION*rightofhead,int num_of_rightques)
+{
+	FILE* fp;
+	fp = fopen("current_right_ques.txt", "w");
+	if (NULL==fp)
+	{
+		printf("打开文件失败");
+		return;
+	}
+	else
+	{
+		fprintf(fp, "%d\n", num_of_rightques);
+		while (rightofhead != NULL)
+		{
+			fprintf(fp, "%s\t%d\t%d\t%d\t%d\n", rightofhead->s, rightofhead->a, rightofhead->b, rightofhead->c, rightofhead->d);
+			rightofhead = rightofhead->nextques;
+		}
+	}
+	fclose(fp);
+}
+
+//将剩余题目存入文件
+void trans_last_ques(QUESTION* nowhead, QUESTION*head,int num_of_last_ques,int xmellon[],int ymellon)
+{
+	QUESTION* p = nowhead;
+	FILE* fp;
+	fp = fopen("current_last_ques.txt", "w");
+	if (NULL == fp)
+	{
+		printf("打开文件失败");
+		return;
+	}
+	else
+	{
+		fprintf(fp, "%d\t%d\t%d\t%d\t%d\t%d\n", num_of_last_ques,xmellon[1], xmellon[2], xmellon[3], xmellon[4], ymellon);
+		if (head == nowhead)
+		{
+			while (head != NULL)
+			{
+				fprintf(fp, "%s\t%d\t%d\t%d\t%d\t%d\n", head->s, head->a, head->b, head->c, head->d,head->sum);
+				head = head->nextques;
+			}
+		}
+		else
+		{
+			while (nowhead != NULL)
+			{
+				fprintf(fp, "%s\t%d\t%d\t%d\t%d\t%d\n", nowhead->s, nowhead->a, nowhead->b, nowhead->c, nowhead->d,nowhead->sum);
+				nowhead = nowhead->nextques;
+			}
+			while (head!=p)
+			{
+				fprintf(fp, "%s\t%d\t%d\t%d\t%d\t%d\n", head->s, head->a, head->b, head->c, head->d,head->sum);
+				head = head->nextques;
+			}
+		}
+	}
+	fclose(fp);
+}
+
+//恢复做对的题
+QUESTION* recover_right_ques()
+{
+	QUESTION* righthead = NULL,*q,*tail=NULL;
+	FILE* fp;
+	int num_of_right;
+	fp = fopen("current_right_ques.txt", "r");
+	if (NULL == fp)
+	{
+		printf("文件打开失败");
+		return NULL;
+	}
+	else
+	{
+		fscanf(fp, "%d", &num_of_right);
+		for (int i = 1; i <= num_of_right; i++)
+		{
+			q = (QUESTION*)malloc(sizeof(QUESTION));
+			fscanf(fp, "%s%d%d%d%d", q->s, &q->a, &q->b, &q->c, &q->d);
+			q->nextques = NULL;
+			if (righthead == NULL)
+			{
+				righthead = q;
+				tail= q;
+			}
+			else
+			{
+				tail->nextques = q;
+				tail = q;
+			}
+		}
+	}
+	return righthead;
+}
+
+//恢复玩家信息
+void recover_player_information(USER*user,int *x_of_pig,int*left_or_right,int*v_of_pig)
+{
+	FILE *fp;
+	fp = fopen("current_score_and_name_and_xofpig.txt", "r");
+	if (NULL == fp)
+	{
+		printf("打开文件失败");
+		return;
+	}
+	else
+	{
+		fscanf(fp, "%s%d%d%d%d", user->name, &user->score,x_of_pig,left_or_right,v_of_pig);
+	}
+	fclose(fp);
+}
+
+//恢复剩余题目
+QUESTION* recover_last_ques(int xmellon[],int *ymellon,int  *num_of_ques)
+{
+	QUESTION* q, * head = NULL, * tail = NULL;
+	FILE* fp;
+	fp = fopen("current_last_ques.txt", "r");
+	if (NULL == fp)
+	{
+		printf("文件打开失败");
+		return NULL;
+	}
+	else
+	{
+		fscanf(fp, "%d%d%d%d%d%d", num_of_ques, &xmellon[1], &xmellon[2], &xmellon[3], &xmellon[4], &*ymellon);
+		for (int i = 1; i <= *num_of_ques; i++)
+		{
+			q = (QUESTION*)malloc(sizeof(QUESTION));
+			fscanf(fp, "%s%d%d%d%d%d", q->s, &q->a, &q->b, &q->c, &q->d,&q->sum);
+			q->nextques = NULL;
+			if (head == NULL)
+			{
+				head = q;
+				tail = q;
+			}
+			else
+			{
+				tail->nextques = q;
+				tail = q;
+			}
+		}
+	}
+	return head;
+}
+
+int main()
+{
+	int is_play_music=1;
+	int is_left_or_right = 0;//判断左右
+	int vofpig = 5;//猪速度
+	int* v_of_pig = &vofpig;//猪速度指针，用于设置难度
+	int yofpig = 175;//猪的高度
+	int xofpig=0;//猪的横坐标位置
+	int ispause = 0;//暂停判断
+	int v_of_mellon = 1;//瓜掉落速度
+	char information_of_question[20];//题目信息
+	char information_of_nextquestion[20];//下一题信息
+	srand((unsigned)time(NULL));
+	int x_of_mellon[5];//西瓜的横坐标
+	int music_of_get_mellon = 0;
+	int num_of_ques = 10;//题目数量
+	char* Check;
+	int is_check=0;//判断是否检查
+	int x_of_mouse=0;//鼠标横坐标
+	int y_of_mouse=0;//鼠标纵坐标
+	while (1)//生成西瓜横坐标
+	{
+
+		x_of_mellon[1] = rand() % 900;
+		x_of_mellon[2] = rand() % 900;
+		x_of_mellon[3] = rand() % 900;
+		x_of_mellon[4] = rand() % 900;
+		if (abs(x_of_mellon[1] - x_of_mellon[2]) >= 150 && abs(x_of_mellon[1] - x_of_mellon[3]) >= 150 && abs(x_of_mellon[1] - x_of_mellon[4]) >= 150 && abs(x_of_mellon[3] - x_of_mellon[2]) >= 150 && abs(x_of_mellon[4] - x_of_mellon[2]) >= 150 && abs(x_of_mellon[3] - x_of_mellon[4]) >= 150)
+		{
+			break;
+		}
+	}
+	int y_of_mellon = -50;//瓜的y坐标
+	
+	//下载图片
+	char file[50];
+	for (int i = 0; i <= 20; i++)
+	{
+		sprintf_s(file, "image\\%d.png", i);
+		loadimage(&watermellon[i], file, 100, 100);
+	}
+	loadimage(&watermellonblack, "image\\watermellonblack2.png", 100, 100);
+	loadimage(&pigrightblack, "image\\猪八戒rightblack.png", 150, yofpig);
+	loadimage(&pigrightblack2, "image\\猪八戒rightblack2.png", 150, yofpig);
+	loadimage(&pigleftblack, "image\\猪八戒leftblack.png", 150, yofpig);
+	loadimage(&pigleftblack2, "image\\猪八戒leftblack2.png", 150, yofpig);
+	loadimage(&soundoff1, "image\\音量关白底黑照.png", 50, 50);
+	loadimage(&soundoff2, "image\\音量关背景黑.png", 50, 50);
+	loadimage(&soundon1, "image\\音量开白底黑照.png", 50, 50);
+	loadimage(&soundon2, "image\\音量开背景黑.png", 50, 50);
+
+	const char* enniu[] = { "暂停","增加","跳过","查看","存盘" ,"退出"};//按钮数组
+	//用户初始化
+	USER user;
+	user.score = 0;
+
+	//欢迎界面，内容：开始，退出，难度
+	int flag=setting(v_of_pig);
+	//玩家，得分字符串
+	char buf[10];
+	//题目数量
+	char ques[20];
+
+	QUESTION* head;//头结点
+	QUESTION* nowhead; //目前的头节点
+	QUESTION* righthead; //对的题目头节点
+	QUESTION* prenode;//总是记录head的前驱结点
+	if (flag == 1)
+	{
+		recover_player_information(&user,&xofpig,&is_left_or_right,v_of_pig);//恢复玩家信息
+		if (recover_last_ques(x_of_mellon, &y_of_mellon,&num_of_ques) == NULL)
+		{
+			QUESTION* pre = (QUESTION*)malloc(sizeof(QUESTION));
+			prenode = pre;
+			head = recover_last_ques(x_of_mellon, &y_of_mellon,&num_of_ques);//创建题目链表
+			nowhead = head;//初始化当前的题目
+			righthead = recover_right_ques();//恢复对的题目
+			prenode->nextques = head;
+		}
+		else
+		{
+			head = recover_last_ques(x_of_mellon, &y_of_mellon,&num_of_ques);//创建题目链表
+			nowhead = head;//初始化当前的题目
+			righthead = recover_right_ques();//恢复对的题目
+			prenode = head;//总是记录head的前驱结点
+		}
+	}
+	else
+	{
+		init(user);//初始化用户信息
+		head = initques();//创建题目链表
+		nowhead = head;//初始化当前的题目
+		righthead = NULL;//对的题目链表初始化//不恢复就是null
+		prenode = head;//总是记录head的前驱结点
+	}
+
+	initgraph(WIDTH, HEIGHT);
+
+	//获取窗口句柄
+	HWND hnd = GetHWnd();
+
+	//设置窗口标题
+	SetWindowText(hnd, "八戒偷瓜");
+	settextcolor(RED);//设置文字颜色
+
+	//鼠标信息
+	ExMessage msg;
+	
+	BeginBatchDraw();
+	while (1)
+	{
+		BGM(is_play_music);//背景音乐
+		while(prenode != head && prenode->nextques != head)//记录前驱结点，便于增加题目
+		{
+			prenode = prenode->nextques;
+		}
+		y_of_mellon += v_of_mellon;
+		setbkcolor(WHITE);//设置背景颜色为白色
+		cleardevice();//清屏，清掉黑色背景
+		setbkmode(TRANSPARENT);
+
+		jiemian();//初始化界面
+
+		//玩家信息  成绩打印
+		settextstyle(30, 0, "楷体");
+		outtextxy(630, 550, "玩家: ");
+		outtextxy(730, 550, user.name);
+		sprintf_s(buf, "得分：%d", user.score);   //user.score为整型，outtextxy要求输出的是 char[]
+		outtextxy(870, 550, buf);
+
+		//打印剩余题目
+		sprintf_s(ques, "剩余题目：%d", num_of_ques);
+		outtextxy(400, 550, ques);
+
+		//按钮绘制
+		for (int i = 0,j=80; i < 6,j<=455; i++,j+=75)
+		{
+			button(875, j, 100, 50, enniu[i],x_of_mouse,y_of_mouse);
+		}
+
+		//打印题目
+		settextstyle(30, 0, "楷体");
+		printques_on_screen(nowhead, head, information_of_question, information_of_nextquestion);
+
+		//绘制音量图标
+		if (is_play_music == 0)
+		{
+			putimage(900, 15, &soundoff1, SRCAND);
+			putimage(900, 15, &soundoff2, SRCINVERT);
+		}
+		else
+		{
+			putimage(900, 15, &soundon1, SRCAND);
+			putimage(900, 15, &soundon2, SRCINVERT);
+		}
+
+		//西瓜下落
+		if (nowhead != NULL)
+		{
+			putimage(x_of_mellon[1], y_of_mellon, &watermellonblack, SRCAND);
+			putimage(x_of_mellon[1], y_of_mellon, &watermellon[nowhead->a], SRCINVERT);
+
+			putimage(x_of_mellon[2], y_of_mellon, &watermellonblack, SRCAND);
+			putimage(x_of_mellon[2], y_of_mellon, &watermellon[nowhead->b], SRCINVERT);
+
+			putimage(x_of_mellon[3], y_of_mellon, &watermellonblack, SRCAND);
+			putimage(x_of_mellon[3], y_of_mellon, &watermellon[nowhead->c], SRCINVERT);
+
+			putimage(x_of_mellon[4], y_of_mellon, &watermellonblack, SRCAND);
+			putimage(x_of_mellon[4], y_of_mellon, &watermellon[nowhead->d], SRCINVERT);
+			if (y_of_mellon >= 600 - yofpig)
+			{
+				if (nowhead->a == nowhead->sum && abs(x_of_mellon[1] - xofpig) <= 50 || nowhead->b == nowhead->sum && abs(x_of_mellon[2] - xofpig) <= 50 || nowhead->c == nowhead->sum && abs(x_of_mellon[3] - xofpig) <= 50 || nowhead->d == nowhead->sum && abs(x_of_mellon[4] - xofpig) <= 50)
+				{
+					num_of_ques--;//剩余题目数量
+					righthead = trans_to_right(nowhead, righthead);
+					if (nowhead == head)
+					{
+						nowhead = del_this_ques(nowhead, head);
+						head = nowhead;
+					}
+					else if (nowhead->nextques != NULL)
+					{
+						nowhead = del_this_ques(nowhead, head);
+					}
+					else
+					{
+						nowhead = del_this_ques(nowhead, head);
+						nowhead = head;
+					}
+					user.score++;
+					music_of_get_mellon++;
+					music_of_get_point(music_of_get_mellon,is_play_music);
+				}
+				else
+				{
+					num_of_ques--;//剩余题目数量
+					if (nowhead == head)//两个指针相等
+					{
+						nowhead = del_this_ques(nowhead, head);
+						head = nowhead;
+					}
+					else if(nowhead->nextques!=NULL)//两个指针不相等且nowhead没到末尾
+					{
+						nowhead = del_this_ques(nowhead, head);
+					}
+					else//两个指针不相等且nowhead到末尾
+					{
+						nowhead = del_this_ques(nowhead, head);
+						nowhead = head;
+					}
+					music_of_get_mellon = 0;
+					music_of_get_point(music_of_get_mellon,is_play_music);
+				}
+				while (1)
+				{
+					x_of_mellon[1] = rand() % 900;
+					x_of_mellon[2] = rand() % 900;
+					x_of_mellon[3] = rand() % 900;
+					x_of_mellon[4] = rand() % 900;
+					if (abs(x_of_mellon[1] - x_of_mellon[2]) >= 150 && abs(x_of_mellon[1] - x_of_mellon[3]) >= 150 && abs(x_of_mellon[1] - x_of_mellon[4]) >= 150 && abs(x_of_mellon[3] - x_of_mellon[2]) >= 150 && abs(x_of_mellon[4] - x_of_mellon[2]) >= 150 && abs(x_of_mellon[3] - x_of_mellon[4]) >= 150)
+					{
+						break;
+					}
+				}
+				y_of_mellon = -50;
+			}
+		}
+
+		//鼠标控制系统
+		if (peekmessage(&msg, EM_MOUSE))
+		{
+			x_of_mouse = msg.x;
+			y_of_mouse = msg.y;
+			switch (msg.message)
+			{
+			case WM_LBUTTONDOWN:
+				if (msg.x >= 900 && msg.x <= 950 && msg.y >= 15 && msg.y <= 65)//音乐
+				{
+					if (is_play_music == 1)
+					{
+						is_play_music = 0;
+					}
+					else
+					{
+						is_play_music = 1;
+					}
+				}
+				if (msg.x >= 875 && msg.x <= 975 && msg.y >= 80 && msg.y <= 130)//暂停
+				{
+					ispause=1;
+				}
+				if (msg.x >= 875 && msg.x <= 975 && msg.y >= 155 && msg.y <= 205)//增加
+				{
+					if (nowhead == NULL)
+					{
+						nowhead = addques(nowhead, head, prenode);
+						head = nowhead;
+						y_of_mellon = -50;
+					}
+					else
+					{
+						addques(nowhead, head, prenode);
+					}
+					num_of_ques++;//剩余题目数量
+				}
+				if (msg.x >= 875 && msg.x <= 975 && msg.y >= 230 && msg.y <= 280)//跳过
+				{
+					nowhead = skip_ques(nowhead,head);
+					y_of_mellon = -50;
+				}
+				if (msg.x >= 875 && msg.x <= 975 && msg.y >= 305 && msg.y <= 355)//查看
+				{
+					is_check++;
+				}
+				if (msg.x >= 875 && msg.x <= 975 && msg.y >= 380 && msg.y <= 430)//导入
+				{
+					trans_current_situation_to_file(user,xofpig,is_left_or_right,vofpig);
+					trans_current_right_ques(righthead, user.score);
+					trans_last_ques(nowhead, head, num_of_ques,x_of_mellon,y_of_mellon);
+				}
+				if (msg.x >= 875 && msg.x <= 975 && msg.y >= 455 && msg.y <= 505)//退出
+				{
+					write_in_file(user);
+					trans_current_situation_to_file(user,xofpig,is_left_or_right,vofpig);
+					trans_current_right_ques(righthead, user.score);
+					trans_last_ques(nowhead, head, num_of_ques, x_of_mellon, y_of_mellon);
+					exit(1);
+				}
+				break;
+			default:
+				break;
+			}
+		}
+		if (is_check % 2 == 1)
+		{
+			check(righthead, head, nowhead);
+		}
+
+		//暂停系统
+		if (ispause == 0)
+		{
+			enniu[0] = "暂停";
+		}
+		if(ispause == 1)
+		{
+			BeginBatchDraw();
+			enniu[0] = "继续";
+			while (1)
+		   {
+				BGM(is_play_music);
+				setbkcolor(WHITE);//设置背景颜色为白色
+				cleardevice();//清屏，清掉黑色背景
+				setbkmode(TRANSPARENT);
+
+				jiemian();//初始化界面
+
+				//玩家信息  成绩打印
+				settextstyle(30, 0, "楷体");
+				outtextxy(630, 550, "玩家: ");
+				outtextxy(730, 550, user.name);
+				sprintf_s(buf, "得分：%d", user.score);   //user.score为整型，outtextxy要求输出的是 char[]
+				outtextxy(870, 550, buf);
+
+				//打印剩余题目
+				sprintf_s(ques, "剩余题目：%d", num_of_ques);
+				outtextxy(400, 550, ques);
+
+				//绘制按钮
+				for (int i = 0, j = 80; i < 6, j <= 455; i++, j += 75)
+				{
+					button(875, j, 100, 50, enniu[i],x_of_mouse,y_of_mouse);
+				}
+
+				if (is_play_music == 0)
+				{
+					putimage(900, 15, &soundoff1, SRCAND);
+					putimage(900, 15, &soundoff2, SRCINVERT);
+				}
+				else
+				{
+					putimage(900, 15, &soundon1, SRCAND);
+					putimage(900, 15, &soundon2, SRCINVERT);
+				}
+				
+				//打印题目
+				settextstyle(30, 0, "楷体");
+				printques_on_screen(nowhead, head, information_of_question, information_of_nextquestion);
+
+				if (is_left_or_right == 1)
+				{
+					putimage(xofpig, 600 - 50 - yofpig, &pigleftblack2, SRCAND);
+					putimage(xofpig, 600 - 50 - yofpig, &pigleftblack, SRCINVERT);
+				}
+				else
+				{
+					putimage(xofpig, 600 - 50 - yofpig, &pigrightblack2, SRCAND);
+					putimage(xofpig, 600 - 50 - yofpig, &pigrightblack, SRCINVERT);
+				}
+				if (nowhead != NULL)
+				{
+					//西瓜下落
+					putimage(x_of_mellon[1], y_of_mellon, &watermellonblack, SRCAND);
+					putimage(x_of_mellon[1], y_of_mellon, &watermellon[nowhead->a], SRCINVERT);
+
+					putimage(x_of_mellon[2], y_of_mellon, &watermellonblack, SRCAND);
+					putimage(x_of_mellon[2], y_of_mellon, &watermellon[nowhead->b], SRCINVERT);
+
+					putimage(x_of_mellon[3], y_of_mellon, &watermellonblack, SRCAND);
+					putimage(x_of_mellon[3], y_of_mellon, &watermellon[nowhead->c], SRCINVERT);
+
+					putimage(x_of_mellon[4], y_of_mellon, &watermellonblack, SRCAND);
+					putimage(x_of_mellon[4], y_of_mellon, &watermellon[nowhead->d], SRCINVERT);
+				}
+
+				if (peekmessage(&msg, EM_MOUSE))
+				{
+					x_of_mouse = msg.x;
+					y_of_mouse = msg.y;
+					switch (msg.message)
+					{
+					case WM_LBUTTONDOWN:
+						if (msg.x >= 900 && msg.x <= 950 && msg.y >= 15 && msg.y <= 65)//音乐
+						{
+							if (is_play_music == 1)
+							{
+								is_play_music = 0;
+							}
+							else
+							{
+								is_play_music = 1;
+							}
+						}
+						if (msg.x >= 875 && msg.x <= 975 && msg.y >= 80 && msg.y <= 130)//继续
+						{
+							ispause=0;
+						}
+						if (msg.x >= 875 && msg.x <= 975 && msg.y >= 155 && msg.y <= 205)//增加
+						{
+							if (nowhead == NULL)
+							{
+								nowhead= addques(nowhead, head, prenode);
+								head = nowhead;
+								y_of_mellon = -50;
+							}
+							else
+							{
+								addques(nowhead, head, prenode);
+							}
+							num_of_ques++;//剩余题目数量
+						}
+						if (msg.x >= 875 && msg.x <= 975 && msg.y >= 230 && msg.y <= 280)//跳过
+						{
+							nowhead = skip_ques(nowhead, head);
+							y_of_mellon = -50;
+						}
+						if (msg.x >= 875 && msg.x <= 975 && msg.y >= 305 && msg.y <= 355)//查看
+						{
+							is_check++;
+						}
+						if (msg.x >= 875 && msg.x <= 975 && msg.y >= 380 && msg.y <= 430)//导入
+						{
+							trans_current_situation_to_file(user,xofpig,is_left_or_right,vofpig);
+							trans_current_right_ques(righthead, user.score);
+							trans_last_ques(nowhead, head, num_of_ques,x_of_mellon,y_of_mellon);
+						}
+						if (msg.x >= 875 && msg.x <= 975 && msg.y >= 455 && msg.y <= 505)//退出
+						{
+							write_in_file(user);
+							trans_current_situation_to_file(user,xofpig,is_left_or_right,vofpig);
+							trans_current_right_ques(righthead, user.score);
+							trans_last_ques(nowhead, head, num_of_ques, x_of_mellon, y_of_mellon);
+							exit(1);
+						}
+						break;
+					default:
+						break;
+					}
+				}
+				if (is_check % 2 == 1)
+				{
+					check(righthead, head, nowhead);
+				}
+				if (ispause == 0)
+				{
+					break;
+				}
+				FlushBatchDraw();
+			}
+		}
+		
+		//移动系统
+		//向左移动
+		if (is_left_or_right == 1)
+		{
+			putimage(xofpig, 600 - 50 - yofpig, &pigleftblack2, SRCAND);
+			putimage(xofpig, 600 - 50 - yofpig, &pigleftblack, SRCINVERT);
+		}
+		//向右移动
+		else
+		{
+			putimage(xofpig, 600 - 50 - yofpig, &pigrightblack2, SRCAND);
+			putimage(xofpig, 600 - 50 - yofpig, &pigrightblack, SRCINVERT);
+		}
+		
+		if (GetAsyncKeyState(VK_LEFT))//向左移动
+		{
+			if (xofpig >= vofpig)
+			{
+				is_left_or_right = 1;
+				xofpig -= vofpig;
+			}
+		}
+		if (GetAsyncKeyState(VK_RIGHT))//向右移动
+		{
+			if (xofpig <= 850 - vofpig)
+			{
+				is_left_or_right = 0;
+				xofpig += vofpig;
+			}
+		}
+		FlushBatchDraw();
+	}
+	EndBatchDraw();
+
+	getchar();
+	return 0;
+}
